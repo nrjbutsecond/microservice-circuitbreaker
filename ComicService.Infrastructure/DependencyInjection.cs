@@ -6,6 +6,7 @@ using ComicService.Infrastructure.Persistence.Repositories;
 using Common.Resilience;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Share.Resilience;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,6 +21,9 @@ namespace ComicService.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
+            // Register Circuit Breaker Monitor as Singleton
+            services.AddSingleton<ICircuitBreakerMonitor, CircuitBreakerMonitor>();
+
             // Database
             services.AddDbContext<ComicDbContext>(options =>
                 options.UseNpgsql(
@@ -49,6 +53,10 @@ namespace ComicService.Infrastructure
                 RetryDelaySeconds = 1
             };
 
+            // Get the monitor instance
+            var serviceProvider = services.BuildServiceProvider();
+            var monitor = serviceProvider.GetRequiredService<ICircuitBreakerMonitor>();
+
             // 🔴 CIRCUIT BREAKER: Reading-Service
             services.AddHttpClient<IReadingServiceClient, ReadingServiceClient>(client =>
             {
@@ -56,7 +64,7 @@ namespace ComicService.Infrastructure
                     ?? "http://reading-service");
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
-            .AddCustomResilienceWithLogging("Reading-Service", cbOptions);
+            .AddCustomResilienceWithLogging("Reading-Service", monitor, cbOptions);
         }
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Reading.Infrastructure.ExternalServices;
 using Reading.Infrastructure.Persistence;
 using Reading.Infrastructure.Persistence.Repositories;
+using Share.Resilience;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,6 +21,9 @@ namespace Reading.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
+            // Register Circuit Breaker Monitor as Singleton
+            services.AddSingleton<ICircuitBreakerMonitor, CircuitBreakerMonitor>();
+
             // Database
             services.AddDbContext<ReadingDbContext>(options =>
                 options.UseNpgsql(
@@ -50,6 +54,10 @@ namespace Reading.Infrastructure
                 RetryDelaySeconds = 1
             };
 
+            // Get the monitor instance
+            var serviceProvider = services.BuildServiceProvider();
+            var monitor = serviceProvider.GetRequiredService<ICircuitBreakerMonitor>();
+
             // 🔴 CIRCUIT BREAKER #1: User-Service
             services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
             {
@@ -57,7 +65,7 @@ namespace Reading.Infrastructure
                     ?? "http://user-service");
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
-            .AddCustomResilienceWithLogging("User-Service", cbOptions);
+            .AddCustomResilienceWithLogging("User-Service", monitor, cbOptions);
 
             // 🔴 CIRCUIT BREAKER #2: Comic-Service
             services.AddHttpClient<IComicServiceClient, ComicServiceClient>(client =>
@@ -66,7 +74,7 @@ namespace Reading.Infrastructure
                     ?? "http://comic-service");
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
-            .AddCustomResilienceWithLogging("Comic-Service", cbOptions);
+            .AddCustomResilienceWithLogging("Comic-Service", monitor, cbOptions);
         }
     }
 }
