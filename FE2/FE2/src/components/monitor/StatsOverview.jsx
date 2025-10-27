@@ -12,9 +12,9 @@ const StatsOverview = ({ data }) => {
   const healthyServices = services.filter(s => s.isHealthy).length;
   const unhealthyServices = totalServices - healthyServices;
   
-  const closedCount = services.filter(s => s.state === 'Closed').length;
-  const openCount = services.filter(s => s.state === 'Open').length;
-  const halfOpenCount = services.filter(s => s.state === 'HalfOpen').length;
+  const closedCount = services.filter(s => s.state === 0).length;
+  const openCount = services.filter(s => s.state === 1).length;
+  const halfOpenCount = services.filter(s => s.state === 2).length;
 
   const totalCalls = services.reduce((sum, s) => sum + s.totalCalls, 0);
   const totalSuccess = services.reduce((sum, s) => sum + s.successCount, 0);
