@@ -48,12 +48,85 @@ namespace Common.Resilience
             string serviceName,
             CircuitBreakerOptions? options = null)
         {
-            builder.AddCustomResilience(options);
+            options ??= new CircuitBreakerOptions();
+            
+            // Store reference to monitor to be used in event handlers
+            CircuitBreakerMonitor? monitorRef = null;
+            
+            // Configure resilience with event handlers
+            builder.AddStandardResilienceHandler(config =>
+            {
+                // Circuit Breaker Configuration
+                config.CircuitBreaker.SamplingDuration =
+                    TimeSpan.FromSeconds(options.SamplingDurationSeconds);
+                config.CircuitBreaker.FailureRatio = options.FailureRatio;
+                config.CircuitBreaker.MinimumThroughput = options.MinimumThroughput;
+                config.CircuitBreaker.BreakDuration =
+                    TimeSpan.FromSeconds(options.BreakDurationSeconds);
 
-            // Add monitoring hooks - monitor will be resolved from DI
+                // ✅ Hook into circuit breaker state change events
+                config.CircuitBreaker.OnOpened = args =>
+                {
+                    if (monitorRef != null)
+                    {
+                        monitorRef.UpdateState(serviceName, CircuitBreakerState.Open);
+                        Console.WriteLine($"🔴 Circuit Breaker OPENED for {serviceName} - Break duration: {args.BreakDuration}");
+                    }
+                    return ValueTask.CompletedTask;
+                };
+
+                config.CircuitBreaker.OnClosed = args =>
+                {
+                    if (monitorRef != null)
+                    {
+                        monitorRef.UpdateState(serviceName, CircuitBreakerState.Closed);
+                        Console.WriteLine($"🟢 Circuit Breaker CLOSED for {serviceName} - Service recovered");
+                    }
+                    return ValueTask.CompletedTask;
+                };
+
+                config.CircuitBreaker.OnHalfOpened = args =>
+                {
+                    if (monitorRef != null)
+                    {
+                        monitorRef.UpdateState(serviceName, CircuitBreakerState.HalfOpen);
+                        Console.WriteLine($"🟡 Circuit Breaker HALF-OPEN for {serviceName} - Testing if service recovered");
+                    }
+                    return ValueTask.CompletedTask;
+                };
+
+                // Timeout Configuration
+                config.AttemptTimeout.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+                config.AttemptTimeout.OnTimeout = args =>
+                {
+                    if (monitorRef != null)
+                    {
+                        monitorRef.RecordTimeout(serviceName);
+                        Console.WriteLine($"⏱️ TIMEOUT for {serviceName} after {args.Timeout}");
+                    }
+                    return ValueTask.CompletedTask;
+                };
+
+                config.TotalRequestTimeout.Timeout =
+                    TimeSpan.FromSeconds(options.TimeoutSeconds * 3);
+
+                // Retry Configuration
+                config.Retry.MaxRetryAttempts = options.RetryCount;
+                config.Retry.Delay = TimeSpan.FromSeconds(options.RetryDelaySeconds);
+                config.Retry.BackoffType = DelayBackoffType.Exponential;
+
+                config.Retry.OnRetry = args =>
+                {
+                    Console.WriteLine($"🔄 RETRY {args.AttemptNumber}/{options.RetryCount} for {serviceName}");
+                    return ValueTask.CompletedTask;
+                };
+            });
+
+            // Add monitoring handler to track successes and failures
             builder.AddHttpMessageHandler(sp =>
             {
                 var monitor = sp.GetRequiredService<CircuitBreakerMonitor>();
+                monitorRef = monitor; // Capture reference for event handlers
                 monitor.RegisterService(serviceName);
                 return new CircuitBreakerMonitoringHandler(serviceName, monitor);
             });
@@ -84,32 +157,53 @@ namespace Common.Resilience
             {
                 var response = await base.SendAsync(request, cancellationToken);
 
+                // Record success or failure based on status code
                 if (response.IsSuccessStatusCode)
                 {
                     _monitor.RecordSuccess(_serviceName);
+                    Console.WriteLine($"✅ SUCCESS: {_serviceName} - {request.Method} {request.RequestUri?.PathAndQuery}");
                 }
                 else
                 {
-                    _monitor.RecordFailure(_serviceName);
+                    _monitor.RecordFailure(_serviceName, new Exception($"HTTP {response.StatusCode}"));
+                    Console.WriteLine($"⚠️ FAILURE: {_serviceName} - {response.StatusCode} - {request.Method} {request.RequestUri?.PathAndQuery}");
                 }
 
                 return response;
             }
-            catch (BrokenCircuitException ex)
+            catch (BrokenCircuitException)
             {
-                _monitor.UpdateState(_serviceName, CircuitBreakerState.Open);
+                // Circuit breaker rejected the call - don't count as failure, just rejection
                 _monitor.RecordRejection(_serviceName);
+                Console.WriteLine($"🔴 REJECTED: {_serviceName} - Circuit breaker is OPEN");
                 throw;
             }
             catch (TimeoutRejectedException ex)
             {
                 _monitor.RecordTimeout(_serviceName);
                 _monitor.RecordFailure(_serviceName, ex);
+                Console.WriteLine($"⏱️ TIMEOUT: {_serviceName} - Request timed out");
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                // Network or connection error
+                _monitor.RecordFailure(_serviceName, ex);
+                Console.WriteLine($"❌ HTTP ERROR: {_serviceName} - {ex.Message}");
+                throw;
+            }
+            catch (TaskCanceledException ex)
+            {
+                // Could be timeout or cancellation
+                _monitor.RecordTimeout(_serviceName);
+                _monitor.RecordFailure(_serviceName, ex);
+                Console.WriteLine($"⏱️ CANCELLED/TIMEOUT: {_serviceName}");
                 throw;
             }
             catch (Exception ex)
             {
                 _monitor.RecordFailure(_serviceName, ex);
+                Console.WriteLine($"❌ ERROR: {_serviceName} - {ex.GetType().Name}: {ex.Message}");
                 throw;
             }
         }

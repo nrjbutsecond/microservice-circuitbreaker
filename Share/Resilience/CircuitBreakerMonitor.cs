@@ -253,7 +253,27 @@ namespace Common.Resilience
         public string? LastException { get; set; }
 
         // Health Metrics
-        public bool IsHealthy => State == CircuitBreakerState.Closed && FailureRate < 10;
+        public bool IsHealthy
+        {
+            get
+            {
+                // If circuit is open, definitely not healthy
+                if (State == CircuitBreakerState.Open)
+                    return false;
+
+                // If circuit is half-open, we're testing recovery
+                if (State == CircuitBreakerState.HalfOpen)
+                    return false;
+
+                // If no calls have been made yet, consider it healthy (neutral state)
+                if (TotalCalls == 0)
+                    return true;
+
+                // If circuit is closed and failure rate is acceptable, it's healthy
+                return State == CircuitBreakerState.Closed && FailureRate < 10;
+            }
+        }
+        
         public TimeSpan Uptime => DateTime.UtcNow - RegisteredAt;
 
         public CircuitBreakerStats Clone()

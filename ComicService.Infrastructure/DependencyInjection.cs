@@ -45,7 +45,7 @@ namespace ComicService.Infrastructure
                 MinimumThroughput = 3,
                 BreakDurationSeconds = 30,
                 TimeoutSeconds = 3,
-                RetryCount = 2,
+                RetryCount = 4,
                 RetryDelaySeconds = 1
             };
 
