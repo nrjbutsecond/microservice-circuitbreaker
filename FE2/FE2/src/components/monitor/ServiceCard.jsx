@@ -44,10 +44,10 @@ const ServiceCard = ({ service }) => {
     <div className="service-card">
       <div className="service-header">
         <div className="service-title">
-          <span className="health-icon">{service.IsHealthy ? '✅' : '❌'}</span>
+          <span className="health-icon">{service.isHealthy ? '✅' : '❌'}</span>
           <h3>{service.ServiceName}</h3>
         </div>
-        <span className={`badge badge-${getStateColor(service.State)}`}>
+        <span className={`badge badge-${getStateColor(service.state)}`}>
           {service.State}
         </span>
       </div>
@@ -57,14 +57,14 @@ const ServiceCard = ({ service }) => {
         <div className="metric-section">
           <div className="metric-header">
             <span className="metric-label">Success Rate</span>
-            <span className="metric-value">{service.SuccessRate.toFixed(2)}%</span>
+            <span className="metric-value">{service.successRate.toFixed(2)}%</span>
           </div>
           <div className="progress-bar">
             <div
-              className={`progress-fill progress-${getProgressColor(service.SuccessRate)}`}
-              style={{ width: `${service.SuccessRate}%` }}
+              className={`progress-fill progress-${getProgressColor(service.successRate)}`}
+              style={{ width: `${service.successRate}%` }}
             >
-              <span className="progress-text">{service.SuccessRate.toFixed(1)}%</span>
+              <span className="progress-text">{service.successRate.toFixed(1)}%</span>
             </div>
           </div>
         </div>
@@ -73,35 +73,35 @@ const ServiceCard = ({ service }) => {
         <div className="stats-grid">
           <div className="stat-item">
             <span className="stat-label">Total Calls</span>
-            <span className="stat-value">{service.TotalCalls}</span>
+            <span className="stat-value">{service.totalCalls}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Success</span>
-            <span className="stat-value success-text">{service.SuccessCount}</span>
+            <span className="stat-value success-text">{service.successCount}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Failures</span>
-            <span className="stat-value danger-text">{service.FailureCount}</span>
+            <span className="stat-value danger-text">{service.failureCount}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Timeouts</span>
-            <span className="stat-value warning-text">{service.TimeoutCount}</span>
+            <span className="stat-value warning-text">{service.timeoutCount}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Rejected</span>
-            <span className="stat-value">{service.RejectedCount}</span>
+            <span className="stat-value">{service.rejectedCount}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Circuit Opened</span>
-            <span className="stat-value">{service.OpenCount}</span>
+            <span className="stat-value">{service.openCount}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Half Open</span>
-            <span className="stat-value">{service.HalfOpenCount}</span>
+            <span className="stat-value">{service.halfOpenCount}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Recoveries</span>
-            <span className="stat-value success-text">{service.RecoveryCount}</span>
+            <span className="stat-value success-text">{service.recoveryCount}</span>
           </div>
         </div>
 
@@ -109,24 +109,24 @@ const ServiceCard = ({ service }) => {
         <div className="additional-info">
           <div className="info-item">
             <span className="info-label">Uptime:</span>
-            <span className="info-value">{formatUptime(service.UptimeSeconds)}</span>
+            <span className="info-value">{formatUptime(service.uptimeSeconds)}</span>
           </div>
-          {service.LastSuccessTime && (
+          {service.lastSuccessTime && (
             <div className="info-item">
               <span className="info-label">Last Success:</span>
-              <span className="info-value">{formatTimestamp(service.LastSuccessTime)}</span>
+              <span className="info-value">{formatTimestamp(service.lastSuccessTime)}</span>
             </div>
           )}
-          {service.LastFailureTime && (
+          {service.lastFailureTime && (
             <div className="info-item">
               <span className="info-label">Last Failure:</span>
-              <span className="info-value">{formatTimestamp(service.LastFailureTime)}</span>
+              <span className="info-value">{formatTimestamp(service.lastFailureTime)}</span>
             </div>
           )}
-          {service.LastException && (
+          {service.lastException && (
             <div className="info-item error-info">
               <span className="info-label">Last Error:</span>
-              <span className="info-value">{service.LastException}</span>
+              <span className="info-value">{service.lastException}</span>
             </div>
           )}
         </div>

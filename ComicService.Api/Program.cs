@@ -44,7 +44,8 @@ namespace ComicService.Api
                 {
                     policy.WithOrigins("http://localhost:5173")
                           .AllowAnyMethod()
-                          .AllowAnyHeader();
+                          .AllowAnyHeader()
+                          .AllowCredentials();
                 });
             });
             var app = builder.Build();

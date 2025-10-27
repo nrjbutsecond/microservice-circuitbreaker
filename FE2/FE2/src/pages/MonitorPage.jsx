@@ -6,8 +6,12 @@ import ServiceCard from '../components/monitor/ServiceCard';
 import './MonitorPage.css';
 
 function MonitorPage() {
+  // State for storing data from each service
+  const [comicServiceData, setComicServiceData] = useState(null);
+  const [readingServiceData, setReadingServiceData] = useState(null);
+
   // Comic Service Connection
-  const [comicHubUrl] = useState('https://localhost:7212/hubs/circuitbreaker');
+  const [comicHubUrl] = useState('http://localhost:5003/hubs/circuitbreaker');
   const {
     isConnected: comicIsConnected,
     isConnecting: comicIsConnecting,
@@ -19,7 +23,7 @@ function MonitorPage() {
   } = useSignalR(comicHubUrl);
 
   // Reading Service Connection
-  const [readingHubUrl] = useState('https://localhost:7080/hubs/circuitbreaker');
+  const [readingHubUrl] = useState('http://localhost:5002/hubs/circuitbreaker');
   const {
     isConnected: readingIsConnected,
     isConnecting: readingIsConnecting,
@@ -29,6 +33,20 @@ function MonitorPage() {
     disconnect: readingDisconnect,
     toggleAutoReconnect: readingToggleAutoReconnect,
   } = useSignalR(readingHubUrl);
+
+  // Update state when comic data changes
+  useEffect(() => {
+    if (comicData) {
+      setComicServiceData(comicData);
+    }
+  }, [comicData]);
+
+  // Update state when reading data changes
+  useEffect(() => {
+    if (readingData) {
+      setReadingServiceData(readingData);
+    }
+  }, [readingData]);
 
   // Auto-connect on mount
   useEffect(() => {
@@ -40,16 +58,16 @@ function MonitorPage() {
   const getAllServices = useMemo(() => {
     const services = [];
     
-    if (comicData && comicData.Type === 'stats' && comicData.Services) {
-      services.push(...comicData.Services);
+    if (comicServiceData && comicServiceData.type === 'stats' && comicServiceData.services) {
+      services.push(...comicServiceData.services);
     }
     
-    if (readingData && readingData.Type === 'stats' && readingData.Services) {
-      services.push(...readingData.Services);
+    if (readingServiceData && readingServiceData.type === 'stats' && readingServiceData.services) {
+      services.push(...readingServiceData.services);
     }
     
     return services;
-  }, [comicData, readingData]);
+  }, [comicServiceData, readingServiceData]);
 
   // Combine stats from both services
   const combinedData = useMemo(() => {
