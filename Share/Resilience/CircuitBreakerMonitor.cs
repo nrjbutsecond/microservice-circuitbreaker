@@ -270,7 +270,7 @@ namespace Common.Resilience
                     return true;
 
                 // If circuit is closed and failure rate is acceptable, it's healthy
-                return State == CircuitBreakerState.Closed && FailureRate < 10;
+                return State == CircuitBreakerState.Closed; //&& FailureRate < 10;
             }
         }
         

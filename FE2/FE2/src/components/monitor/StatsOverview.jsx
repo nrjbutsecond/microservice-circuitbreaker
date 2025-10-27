@@ -9,17 +9,17 @@ const StatsOverview = ({ data }) => {
   const totalServices = data.TotalServices || 0;
   const services = data.Services || [];
   
-  const healthyServices = services.filter(s => s.IsHealthy).length;
+  const healthyServices = services.filter(s => s.isHealthy).length;
   const unhealthyServices = totalServices - healthyServices;
   
-  const closedCount = services.filter(s => s.State === 'Closed').length;
-  const openCount = services.filter(s => s.State === 'Open').length;
-  const halfOpenCount = services.filter(s => s.State === 'HalfOpen').length;
+  const closedCount = services.filter(s => s.state === 'Closed').length;
+  const openCount = services.filter(s => s.state === 'Open').length;
+  const halfOpenCount = services.filter(s => s.state === 'HalfOpen').length;
 
-  const totalCalls = services.reduce((sum, s) => sum + s.TotalCalls, 0);
-  const totalSuccess = services.reduce((sum, s) => sum + s.SuccessCount, 0);
-  const totalFailures = services.reduce((sum, s) => sum + s.FailureCount, 0);
-  
+  const totalCalls = services.reduce((sum, s) => sum + s.totalCalls, 0);
+  const totalSuccess = services.reduce((sum, s) => sum + s.successCount, 0);
+  const totalFailures = services.reduce((sum, s) => sum + s.failureCount, 0);
+
   const overallSuccessRate = totalCalls > 0 ? (totalSuccess / totalCalls * 100) : 0;
 
   const formatTimestamp = (timestamp) => {
