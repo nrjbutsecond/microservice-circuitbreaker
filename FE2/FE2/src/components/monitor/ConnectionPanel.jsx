@@ -10,6 +10,7 @@ const ConnectionPanel = ({
   onDisconnect,
   error,
   onAutoReconnectChange,
+  serviceName = 'SignalR Service', // Default service name
 }) => {
   const getStatusClass = () => {
     if (isConnecting) return 'connecting';
@@ -26,7 +27,7 @@ const ConnectionPanel = ({
   return (
     <div className="connection-panel">
       <div className="connection-header">
-        <h2>🔌 SignalR Connection</h2>
+        <h2>🔌 {serviceName}</h2>
         <span className={`status-badge ${getStatusClass()}`}>
           {getStatusText()}
         </span>
@@ -34,14 +35,14 @@ const ConnectionPanel = ({
 
       <div className="connection-form">
         <div className="form-group">
-          <label htmlFor="hubUrl">SignalR Hub URL:</label>
+          <label htmlFor="hubUrl">Hub URL:</label>
           <input
             type="text"
             id="hubUrl"
             value={url}
             onChange={(e) => onUrlChange(e.target.value)}
             placeholder="http://localhost:5001/hubs/circuitbreaker"
-            disabled={isConnected || isConnecting}
+            disabled={true}
             className="url-input"
           />
         </div>
@@ -80,26 +81,6 @@ const ConnectionPanel = ({
             <span>{error}</span>
           </div>
         )}
-
-        <div className="connection-info">
-          <div className="info-box">
-            <h4>Available Hubs:</h4>
-            <ul>
-              <li>
-                <code>http://localhost:5001/hubs/circuitbreaker</code>
-                <span className="endpoint-desc">Comic Service</span>
-              </li>
-              <li>
-                <code>http://localhost:5002/hubs/circuitbreaker</code>
-                <span className="endpoint-desc">Reading Service</span>
-              </li>
-              <li>
-                <code>http://localhost:5003/hubs/circuitbreaker</code>
-                <span className="endpoint-desc">User Service</span>
-              </li>
-            </ul>
-          </div>
-        </div>
       </div>
     </div>
   );

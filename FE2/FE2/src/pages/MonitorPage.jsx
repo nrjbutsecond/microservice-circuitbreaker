@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSignalR from '../hooks/useSignalR';
 import ConnectionPanel from '../components/monitor/ConnectionPanel';
 import StatsOverview from '../components/monitor/StatsOverview';
@@ -6,41 +6,72 @@ import ServiceCard from '../components/monitor/ServiceCard';
 import './MonitorPage.css';
 
 function MonitorPage() {
-  const [hubUrl, setHubUrl] = useState('http://localhost:5001/hubs/circuitbreaker');
+  // Comic Service Connection
+  const [comicHubUrl] = useState('https://localhost:7212/hubs/circuitbreaker');
   const {
-    isConnected,
-    isConnecting,
-    data,
-    error,
-    connect,
-    disconnect,
-    toggleAutoReconnect,
-  } = useSignalR(hubUrl);
+    isConnected: comicIsConnected,
+    isConnecting: comicIsConnecting,
+    data: comicData,
+    error: comicError,
+    connect: comicConnect,
+    disconnect: comicDisconnect,
+    toggleAutoReconnect: comicToggleAutoReconnect,
+  } = useSignalR(comicHubUrl);
 
-  const handleConnect = () => {
-    connect();
-  };
+  // Reading Service Connection
+  const [readingHubUrl] = useState('https://localhost:7080/hubs/circuitbreaker');
+  const {
+    isConnected: readingIsConnected,
+    isConnecting: readingIsConnecting,
+    data: readingData,
+    error: readingError,
+    connect: readingConnect,
+    disconnect: readingDisconnect,
+    toggleAutoReconnect: readingToggleAutoReconnect,
+  } = useSignalR(readingHubUrl);
 
-  const handleDisconnect = () => {
-    disconnect();
-  };
+  // Auto-connect on mount
+  useEffect(() => {
+    comicConnect();
+    readingConnect();
+  }, []);
 
-  const handleUrlChange = (newUrl) => {
-    if (!isConnected && !isConnecting) {
-      setHubUrl(newUrl);
+  // Combine data from both services
+  const getAllServices = () => {
+    const services = [];
+    
+    if (comicData && comicData.Type === 'stats' && comicData.Services) {
+      services.push(...comicData.Services);
     }
-  };
-
-  const handleAutoReconnectChange = (enabled) => {
-    toggleAutoReconnect(enabled);
-  };
-
-  const getServices = () => {
-    if (data && data.Type === 'stats' && data.Services) {
-      return data.Services;
+    
+    if (readingData && readingData.Type === 'stats' && readingData.Services) {
+      services.push(...readingData.Services);
     }
-    return [];
+    
+    return services;
   };
+
+  // Combine stats from both services
+  const getCombinedData = () => {
+    const services = getAllServices();
+    
+    if (services.length === 0) {
+      return null;
+    }
+
+    const totalServices = services.length;
+    const timestamp = new Date().toISOString();
+    
+    return {
+      Type: 'stats',
+      TotalServices: totalServices,
+      Services: services,
+      Timestamp: timestamp,
+      totalServices: totalServices
+    };
+  };
+
+  const combinedData = getCombinedData();
 
   return (
     <div className="monitor-app">
@@ -50,28 +81,43 @@ function MonitorPage() {
       </header>
 
       <div className="monitor-app-container">
+        {/* Comic Service Connection Panel */}
         <ConnectionPanel
-          url={hubUrl}
-          onUrlChange={handleUrlChange}
-          isConnected={isConnected}
-          isConnecting={isConnecting}
-          onConnect={handleConnect}
-          onDisconnect={handleDisconnect}
-          error={error}
-          onAutoReconnectChange={handleAutoReconnectChange}
+          url={comicHubUrl}
+          onUrlChange={() => {}} // URL is fixed
+          isConnected={comicIsConnected}
+          isConnecting={comicIsConnecting}
+          onConnect={comicConnect}
+          onDisconnect={comicDisconnect}
+          error={comicError}
+          onAutoReconnectChange={comicToggleAutoReconnect}
+          serviceName="Comic Service"
         />
 
-        {data && data.Type === 'stats' && (
+        {/* Reading Service Connection Panel */}
+        <ConnectionPanel
+          url={readingHubUrl}
+          onUrlChange={() => {}} // URL is fixed
+          isConnected={readingIsConnected}
+          isConnecting={readingIsConnecting}
+          onConnect={readingConnect}
+          onDisconnect={readingDisconnect}
+          error={readingError}
+          onAutoReconnectChange={readingToggleAutoReconnect}
+          serviceName="Reading Service"
+        />
+
+        {combinedData && (
           <>
-            <StatsOverview data={data} />
+            <StatsOverview data={combinedData} />
 
             <div className="monitor-services-section">
               <h2 className="monitor-section-title">
-                📡 Services Status ({data.totalServices})
+                📡 Services Status ({combinedData.totalServices})
               </h2>
-              {getServices().length > 0 ? (
+              {getAllServices().length > 0 ? (
                 <div className="monitor-services-grid">
-                  {getServices().map((service, index) => (
+                  {getAllServices().map((service, index) => (
                     <ServiceCard key={`${service.serviceName}-${index}`} service={service} />
                   ))}
                 </div>
@@ -84,7 +130,7 @@ function MonitorPage() {
           </>
         )}
 
-        {!isConnected && !isConnecting && !data && (
+        {!comicIsConnected && !comicIsConnecting && !readingIsConnected && !readingIsConnecting && !combinedData && (
           <div className="monitor-placeholder">
             <div className="monitor-placeholder-icon">🔌</div>
             <h2>Not Connected</h2>
