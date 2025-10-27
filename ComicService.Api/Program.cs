@@ -2,6 +2,7 @@
 using ComicService.Api.Middleware;
 using ComicService.Core.Application.Services;
 using ComicService.Infrastructure;
+using Common.Resilience;
 
 namespace ComicService.Api
 {
@@ -22,6 +23,16 @@ namespace ComicService.Api
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
             builder.Services.AddMemoryCache();
+            
+            // 🔴 Register CircuitBreakerMonitor as Singleton
+            builder.Services.AddSingleton<CircuitBreakerMonitor>();
+            
+            // 🔴 Add SignalR
+            builder.Services.AddSignalR();
+            
+            // 🔴 Add Background Service for broadcasting stats
+            builder.Services.AddHostedService<CircuitBreakerBroadcastService>();
+            
             builder.Services.AddInfrastructure(builder.Configuration);
             builder.Services.AddScoped<IComicService, ComicService.Core.Application.Services.ComicService>();
             builder.Services.AddScoped<IChapterService, ChapterService>();
@@ -31,7 +42,7 @@ namespace ComicService.Api
             {
                 options.AddPolicy("AllowAll", policy =>
                 {
-                    policy.AllowAnyOrigin()
+                    policy.WithOrigins("http://localhost:5173")
                           .AllowAnyMethod()
                           .AllowAnyHeader();
                 });
@@ -49,7 +60,6 @@ namespace ComicService.Api
 
             app.UseCors("AllowAll");
 
-
             app.MapHealthChecks("/health");
 
             // Log startup
@@ -60,8 +70,10 @@ namespace ComicService.Api
 
             app.UseAuthorization();
 
-
             app.MapControllers();
+            
+            // 🔴 Map SignalR Hub
+            app.MapHub<CircuitBreakerHub>("/hubs/circuitbreaker");
 
             app.Run();
         }

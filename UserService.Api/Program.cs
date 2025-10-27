@@ -2,6 +2,8 @@
 using UserService.Api.Middleware;
 using UserService.Core.Application.Service;
 using HealthChecks.NpgSql;
+using Common.Resilience;
+
 namespace UserService.Api
 {
     public class Program
@@ -20,6 +22,16 @@ namespace UserService.Api
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+            
+            // 🔴 Register CircuitBreakerMonitor as Singleton
+            builder.Services.AddSingleton<CircuitBreakerMonitor>();
+            
+            // 🔴 Add SignalR
+            builder.Services.AddSignalR();
+            
+            // 🔴 Add Background Service for broadcasting stats
+            builder.Services.AddHostedService<CircuitBreakerBroadcastService>();
+            
             builder.Services.AddInfrastructure(builder.Configuration);
             builder.Services.AddScoped<IUserService, UserService.Core.Application.Service.UserService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
@@ -32,9 +44,10 @@ namespace UserService.Api
             {
                 options.AddPolicy("AllowAll", policy =>
                 {
-                    policy.AllowAnyOrigin()
+                    policy.WithOrigins("http://localhost:5173")
                           .AllowAnyMethod()
-                          .AllowAnyHeader();
+                          .AllowAnyHeader()
+                          .AllowCredentials(); // Required for SignalR
                 });
             });
             var app = builder.Build();
@@ -48,14 +61,17 @@ namespace UserService.Api
 
             app.UseMiddleware<ExceptionHandlingMiddleware>();
             app.UseCors("AllowAll");
+            
             app.MapHealthChecks("/health");
 
             app.UseHttpsRedirection();
 
             app.UseAuthorization();
 
-
             app.MapControllers();
+            
+            // 🔴 Map SignalR Hub
+            app.MapHub<CircuitBreakerHub>("/hubs/circuitbreaker");
 
             app.Run();
         }

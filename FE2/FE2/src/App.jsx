@@ -9,6 +9,7 @@ import { ComicsListPage } from './pages/ComicsListPage';
 import { ComicDetailPage } from './pages/ComicDetailPage';
 import { ChapterReaderPage } from './pages/ChapterReaderPage';
 import { ReadingHistoryPage } from './pages/ReadingHistoryPage';
+import MonitorPage from './pages/MonitorPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,12 @@ function AppRoutes() {
               <ReadingHistoryPage />
             </ProtectedRoute>
           } 
+        />
+        
+        {/* Monitor Route */}
+        <Route 
+          path="/monitor" 
+          element={<MonitorPage />} 
         />
 
         {/* Fallback */}

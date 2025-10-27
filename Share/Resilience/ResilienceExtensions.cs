@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,9 +49,69 @@ namespace Common.Resilience
             CircuitBreakerOptions? options = null)
         {
             builder.AddCustomResilience(options);
-          //  builder.AddResilienceEnricher(serviceName); // Optional logging enhancer
+
+            // Add monitoring hooks - monitor will be resolved from DI
+            builder.AddHttpMessageHandler(sp =>
+            {
+                var monitor = sp.GetRequiredService<CircuitBreakerMonitor>();
+                monitor.RegisterService(serviceName);
+                return new CircuitBreakerMonitoringHandler(serviceName, monitor);
+            });
+
             return builder;
         }
     }
 
+    /// <summary>
+    /// HTTP handler that monitors circuit breaker events
+    /// </summary>
+    internal class CircuitBreakerMonitoringHandler : DelegatingHandler
+    {
+        private readonly string _serviceName;
+        private readonly CircuitBreakerMonitor _monitor;
+
+        public CircuitBreakerMonitoringHandler(string serviceName, CircuitBreakerMonitor monitor)
+        {
+            _serviceName = serviceName;
+            _monitor = monitor;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var response = await base.SendAsync(request, cancellationToken);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _monitor.RecordSuccess(_serviceName);
+                }
+                else
+                {
+                    _monitor.RecordFailure(_serviceName);
+                }
+
+                return response;
+            }
+            catch (BrokenCircuitException ex)
+            {
+                _monitor.UpdateState(_serviceName, CircuitBreakerState.Open);
+                _monitor.RecordRejection(_serviceName);
+                throw;
+            }
+            catch (TimeoutRejectedException ex)
+            {
+                _monitor.RecordTimeout(_serviceName);
+                _monitor.RecordFailure(_serviceName, ex);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _monitor.RecordFailure(_serviceName, ex);
+                throw;
+            }
+        }
+    }
 }

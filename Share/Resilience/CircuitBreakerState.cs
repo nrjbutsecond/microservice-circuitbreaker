@@ -17,7 +17,7 @@ namespace Common.Resilience
     {
         public string ServiceName { get; set; } = string.Empty;
         public CircuitBreakerState State { get; set; }
-        public int FailureCount { get; set; }
+        public long FailureCount { get; set; }
         public double SuccessRate { get; set; }
         public DateTime? LastFailureTime { get; set; }
         public DateTime? NextAttemptTime { get; set; }

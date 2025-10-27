@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Book, History, LogOut, User } from 'lucide-react';
+import { Book, History, LogOut, User, Activity } from 'lucide-react';
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
@@ -35,6 +35,13 @@ export const Navbar = () => {
                 >
                   <History className="w-4 h-4" />
                   <span>History</span>
+                </Link>
+                <Link
+                  to="/monitor"
+                  className="flex items-center space-x-1 text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Monitor</span>
                 </Link>
                   <div className="flex items-center space-x-3 border-l pl-4">
                   <div className="flex items-center space-x-2">
