@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import useSignalR from '../hooks/useSignalR';
 import ConnectionPanel from '../components/monitor/ConnectionPanel';
 import StatsOverview from '../components/monitor/StatsOverview';
@@ -37,7 +37,7 @@ function MonitorPage() {
   }, []);
 
   // Combine data from both services
-  const getAllServices = () => {
+  const getAllServices = useMemo(() => {
     const services = [];
     
     if (comicData && comicData.Type === 'stats' && comicData.Services) {
@@ -49,11 +49,11 @@ function MonitorPage() {
     }
     
     return services;
-  };
+  }, [comicData, readingData]);
 
   // Combine stats from both services
-  const getCombinedData = () => {
-    const services = getAllServices();
+  const combinedData = useMemo(() => {
+    const services = getAllServices;
     
     if (services.length === 0) {
       return null;
@@ -69,9 +69,7 @@ function MonitorPage() {
       Timestamp: timestamp,
       totalServices: totalServices
     };
-  };
-
-  const combinedData = getCombinedData();
+  }, [getAllServices]);
 
   return (
     <div className="monitor-app">
@@ -115,9 +113,9 @@ function MonitorPage() {
               <h2 className="monitor-section-title">
                 📡 Services Status ({combinedData.totalServices})
               </h2>
-              {getAllServices().length > 0 ? (
+              {getAllServices.length > 0 ? (
                 <div className="monitor-services-grid">
-                  {getAllServices().map((service, index) => (
+                  {getAllServices.map((service, index) => (
                     <ServiceCard key={`${service.serviceName}-${index}`} service={service} />
                   ))}
                 </div>
