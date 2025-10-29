@@ -41,6 +41,8 @@ namespace UserService.Api.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<ApiResponse<UserDto>>> GetById(int id, CancellationToken ct)
         {
+            var currentUserId = (int)HttpContext.Items["UserId"]!;
+            _logger.LogInformation("User {CurrentUserId} requesting user {Id}", currentUserId, id);
             var user = await _userService.GetByIdAsync(id, ct);
             return Ok(ApiResponse<UserDto>.SuccessResponse(user));
         }

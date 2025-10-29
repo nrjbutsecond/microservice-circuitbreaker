@@ -13,12 +13,14 @@ namespace UserService.Core.Application.Service
     public class AuthService : IAuthService
     {
         private readonly IUserRepository _userRepository;
+        private readonly IJwtService _jwtService;
         private readonly ILogger<AuthService> _logger;
 
-        public AuthService(IUserRepository userRepository, ILogger<AuthService> logger)
+        public AuthService(IUserRepository userRepository,IJwtService jwtService ,ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
             _logger = logger;
+            _jwtService = jwtService;
         }
 
         public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
@@ -37,7 +39,7 @@ namespace UserService.Core.Application.Service
                 throw new ValidationException("Invalid email or password");
             }
 
-            var token = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
+            var token = _jwtService.GenerateToken(user);
 
             _logger.LogInformation("User logged in: {UserId}", user.Id);
 
