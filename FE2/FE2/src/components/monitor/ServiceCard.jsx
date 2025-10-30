@@ -45,10 +45,21 @@ const ServiceCard = ({ service }) => {
       <div className="service-header">
         <div className="service-title">
           <span className="health-icon">{service.isHealthy ? '✅' : '❌'}</span>
-          <h3>{service.ServiceName}</h3>
+          <h3>{service.serviceName}</h3>
         </div>
         <span className={`badge badge-${getStateColor(service.state)}`}>
-          {service.State}
+          {(() => {
+            switch(service.state) {
+              case 0:
+                return 'Closed';
+              case 1:
+                return 'Open';
+              case 2:
+                return 'Half Open';
+              default:
+                return 'Unknown';
+            }
+          })()}
         </span>
       </div>
 
