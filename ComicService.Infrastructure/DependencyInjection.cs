@@ -57,12 +57,21 @@ namespace ComicService.Infrastructure
             var serviceProvider = services.BuildServiceProvider();
             var monitor = serviceProvider.GetRequiredService<ICircuitBreakerMonitor>();
 
+            // Get API Key for service-to-service authentication
+            var apiKey = configuration["ServiceAuthentication:ApiKey"];
+
             // 🔴 CIRCUIT BREAKER: Reading-Service
             services.AddHttpClient<IReadingServiceClient, ReadingServiceClient>(client =>
             {
                 client.BaseAddress = new Uri(configuration["Services:Reading:Url"]
                     ?? "http://reading-service");
                 client.Timeout = TimeSpan.FromSeconds(10);
+
+                // 🔑 Add API Key for authentication
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+                }
             })
             .AddCustomResilienceWithLogging("Reading-Service", monitor, cbOptions);
         }

@@ -42,6 +42,7 @@ namespace ComicService.Api
             }
 
             app.UseMiddleware<ExceptionHandlingMiddleware>();
+            app.UseMiddleware<ServiceAuthenticationMiddleware>(); // 🔑 API Key authentication
 
             app.UseCors("AllowAll");
 

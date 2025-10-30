@@ -58,12 +58,21 @@ namespace Reading.Infrastructure
             var serviceProvider = services.BuildServiceProvider();
             var monitor = serviceProvider.GetRequiredService<ICircuitBreakerMonitor>();
 
+            // Get API Key for service-to-service authentication
+            var apiKey = configuration["ServiceAuthentication:ApiKey"];
+
             // 🔴 CIRCUIT BREAKER #1: User-Service
             services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
             {
                 client.BaseAddress = new Uri(configuration["Services:User:Url"]
                     ?? "http://user-service");
                 client.Timeout = TimeSpan.FromSeconds(10);
+
+                // 🔑 Add API Key for authentication
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+                }
             })
             .AddCustomResilienceWithLogging("User-Service", monitor, cbOptions);
 
@@ -73,6 +82,12 @@ namespace Reading.Infrastructure
                 client.BaseAddress = new Uri(configuration["Services:Comic:Url"]
                     ?? "http://comic-service");
                 client.Timeout = TimeSpan.FromSeconds(10);
+
+                // 🔑 Add API Key for authentication
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+                }
             })
             .AddCustomResilienceWithLogging("Comic-Service", monitor, cbOptions);
         }
