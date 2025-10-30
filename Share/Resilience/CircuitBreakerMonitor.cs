@@ -69,6 +69,14 @@ namespace Common.Resilience
         public void UpdateState(string serviceName, CircuitBreakerState newState)
         {
             var stats = GetOrCreateStats(serviceName);
+
+            // Half-open and opend state fire this event everytime APIs are invoked, count only if state changes, else update failure count
+            if (stats.State == newState && newState != CircuitBreakerState.Closed)
+            {
+                RecordFailure(serviceName);
+                return;
+            }
+
             lock (stats.Lock)
             {
                 var previousState = stats.State;
@@ -89,6 +97,18 @@ namespace Common.Resilience
                         // Successfully recovered
                         stats.RecoveryCount++;
                         break;
+                }
+
+                // Reset counters on state change
+                if (previousState != newState)
+                {
+                    stats.TotalCalls = 0;
+                    stats.SuccessCount = 0;
+                    stats.FailureCount = 0;
+                    stats.TimeoutCount = 0;
+                    stats.RejectedCount = 0;
+                    stats.SuccessRate = 0;
+                    stats.FailureRate = 0;
                 }
             }
         }
@@ -175,7 +195,7 @@ namespace Common.Resilience
                 {
                     var currentState = stats.State;
                     var registeredAt = stats.RegisteredAt;
-                    
+
                     _stats[serviceName] = new CircuitBreakerStats
                     {
                         ServiceName = serviceName,
@@ -273,7 +293,7 @@ namespace Common.Resilience
                 return State == CircuitBreakerState.Closed; //&& FailureRate < 10;
             }
         }
-        
+
         public TimeSpan Uptime => DateTime.UtcNow - RegisteredAt;
 
         public CircuitBreakerStats Clone()
