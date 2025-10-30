@@ -1,111 +1,335 @@
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 
-namespace Share.Resilience;
-
-public interface ICircuitBreakerMonitor
+namespace Common.Resilience
 {
-    void RecordEvent(CircuitBreakerEvent cbEvent);
-    void UpdateStatus(string serviceName, string state, int failureCount, int successCount, DateTime? lastFailureTime, DateTime? lastSuccessTime, DateTime? nextAttemptTime, TimeSpan? breakDuration);
-    void IncrementFailure(string serviceName);
-    void IncrementSuccess(string serviceName);
-    CircuitBreakerMetrics GetMetrics();
-    CircuitBreakerStatus? GetServiceStatus(string serviceName);
-    List<CircuitBreakerEvent> GetEvents(int limit = 100);
-    List<CircuitBreakerEvent> GetServiceEvents(string serviceName, int limit = 100);
-}
-
-public class CircuitBreakerMonitor : ICircuitBreakerMonitor
-{
-    private readonly ConcurrentQueue<CircuitBreakerEvent> _events = new();
-    private readonly ConcurrentDictionary<string, CircuitBreakerStatus> _serviceStatus = new();
-    private const int MaxEvents = 1000; // Keep last 1000 events in memory
-
-    public void RecordEvent(CircuitBreakerEvent cbEvent)
+    /// <summary>
+    /// Service to track circuit breaker statistics across all services.
+    /// Register as singleton: services.AddSingleton<CircuitBreakerMonitor>();
+    /// </summary>
+    public class CircuitBreakerMonitor
     {
-        cbEvent.Timestamp = DateTime.UtcNow;
-        _events.Enqueue(cbEvent);
+        private readonly ConcurrentDictionary<string, CircuitBreakerStats> _stats;
+        private readonly object _lock = new object();
 
-        // Limit the queue size
-        while (_events.Count > MaxEvents)
+        public CircuitBreakerMonitor()
         {
-            _events.TryDequeue(out _);
+            _stats = new ConcurrentDictionary<string, CircuitBreakerStats>();
+        }
+
+        /// <summary>
+        /// Register a new service to monitor
+        /// </summary>
+        public void RegisterService(string serviceName)
+        {
+            _stats.TryAdd(serviceName, new CircuitBreakerStats
+            {
+                ServiceName = serviceName,
+                State = CircuitBreakerState.Closed,
+                RegisteredAt = DateTime.UtcNow
+            });
+        }
+
+        /// <summary>
+        /// Record a successful call
+        /// </summary>
+        public void RecordSuccess(string serviceName)
+        {
+            var stats = GetOrCreateStats(serviceName);
+            lock (stats.Lock)
+            {
+                stats.TotalCalls++;
+                stats.SuccessCount++;
+                stats.LastSuccessTime = DateTime.UtcNow;
+                UpdateFailureRate(stats);
+            }
+        }
+
+        /// <summary>
+        /// Record a failed call
+        /// </summary>
+        public void RecordFailure(string serviceName, Exception? exception = null)
+        {
+            var stats = GetOrCreateStats(serviceName);
+            lock (stats.Lock)
+            {
+                stats.TotalCalls++;
+                stats.FailureCount++;
+                stats.LastFailureTime = DateTime.UtcNow;
+                stats.LastException = exception?.Message;
+                UpdateFailureRate(stats);
+            }
+        }
+
+        /// <summary>
+        /// Update circuit breaker state
+        /// </summary>
+        public void UpdateState(string serviceName, CircuitBreakerState newState)
+        {
+            var stats = GetOrCreateStats(serviceName);
+
+            // Half-open and opend state fire this event everytime APIs are invoked, count only if state changes, else update failure count
+            if (stats.State == newState && newState != CircuitBreakerState.Closed)
+            {
+                RecordFailure(serviceName);
+                return;
+            }
+
+            lock (stats.Lock)
+            {
+                var previousState = stats.State;
+                stats.State = newState;
+                stats.LastStateChange = DateTime.UtcNow;
+
+                // Track state transitions
+                switch (newState)
+                {
+                    case CircuitBreakerState.Open:
+                        stats.OpenCount++;
+                        stats.LastOpenTime = DateTime.UtcNow;
+                        break;
+                    case CircuitBreakerState.HalfOpen:
+                        stats.HalfOpenCount++;
+                        break;
+                    case CircuitBreakerState.Closed when previousState == CircuitBreakerState.HalfOpen:
+                        // Successfully recovered
+                        stats.RecoveryCount++;
+                        break;
+                }
+
+                // Reset counters on state change
+                if (previousState != newState)
+                {
+                    stats.TotalCalls = 0;
+                    stats.SuccessCount = 0;
+                    stats.FailureCount = 0;
+                    stats.TimeoutCount = 0;
+                    stats.RejectedCount = 0;
+                    stats.SuccessRate = 0;
+                    stats.FailureRate = 0;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Record a timeout
+        /// </summary>
+        public void RecordTimeout(string serviceName)
+        {
+            var stats = GetOrCreateStats(serviceName);
+            lock (stats.Lock)
+            {
+                stats.TimeoutCount++;
+                stats.LastTimeoutTime = DateTime.UtcNow;
+            }
+        }
+
+        /// <summary>
+        /// Record a rejected call (when circuit is open)
+        /// </summary>
+        public void RecordRejection(string serviceName)
+        {
+            var stats = GetOrCreateStats(serviceName);
+            lock (stats.Lock)
+            {
+                stats.RejectedCount++;
+                stats.LastRejectionTime = DateTime.UtcNow;
+            }
+        }
+
+        /// <summary>
+        /// Get statistics for a specific service
+        /// </summary>
+        public CircuitBreakerStats? GetStats(string serviceName)
+        {
+            return _stats.TryGetValue(serviceName, out var stats) ? stats.Clone() : null;
+        }
+
+        /// <summary>
+        /// Get statistics for all services
+        /// </summary>
+        public IReadOnlyDictionary<string, CircuitBreakerStats> GetAllStats()
+        {
+            return _stats.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.Clone()
+            );
+        }
+
+        /// <summary>
+        /// Get current circuit breaker info for a service
+        /// </summary>
+        public CircuitBreakerInfo GetCircuitBreakerInfo(string serviceName)
+        {
+            var stats = GetStats(serviceName);
+            if (stats == null)
+            {
+                return new CircuitBreakerInfo
+                {
+                    ServiceName = serviceName,
+                    State = CircuitBreakerState.Closed
+                };
+            }
+
+            return new CircuitBreakerInfo
+            {
+                ServiceName = serviceName,
+                State = stats.State,
+                FailureCount = stats.FailureCount,
+                SuccessRate = stats.SuccessRate,
+                LastFailureTime = stats.LastFailureTime,
+                NextAttemptTime = stats.State == CircuitBreakerState.Open ? stats.LastOpenTime?.AddSeconds(30) : null
+            };
+        }
+
+        /// <summary>
+        /// Reset statistics for a specific service
+        /// </summary>
+        public void ResetStats(string serviceName)
+        {
+            if (_stats.TryGetValue(serviceName, out var stats))
+            {
+                lock (stats.Lock)
+                {
+                    var currentState = stats.State;
+                    var registeredAt = stats.RegisteredAt;
+
+                    _stats[serviceName] = new CircuitBreakerStats
+                    {
+                        ServiceName = serviceName,
+                        State = currentState,
+                        RegisteredAt = registeredAt
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Clear all statistics
+        /// </summary>
+        public void ClearAllStats()
+        {
+            _stats.Clear();
+        }
+
+        private CircuitBreakerStats GetOrCreateStats(string serviceName)
+        {
+            return _stats.GetOrAdd(serviceName, name => new CircuitBreakerStats
+            {
+                ServiceName = name,
+                State = CircuitBreakerState.Closed,
+                RegisteredAt = DateTime.UtcNow
+            });
+        }
+
+        private void UpdateFailureRate(CircuitBreakerStats stats)
+        {
+            if (stats.TotalCalls > 0)
+            {
+                stats.SuccessRate = (double)stats.SuccessCount / stats.TotalCalls * 100;
+                stats.FailureRate = (double)stats.FailureCount / stats.TotalCalls * 100;
+            }
         }
     }
 
-    public void UpdateStatus(string serviceName, string state, int failureCount, int successCount,
-        DateTime? lastFailureTime, DateTime? lastSuccessTime, DateTime? nextAttemptTime, TimeSpan? breakDuration)
+    /// <summary>
+    /// Detailed statistics for a circuit breaker
+    /// </summary>
+    public class CircuitBreakerStats
     {
-        var status = _serviceStatus.GetOrAdd(serviceName, _ => new CircuitBreakerStatus { ServiceName = serviceName });
+        internal readonly object Lock = new object();
 
-        status.State = state;
-        status.FailureCount = failureCount;
-        status.SuccessCount = successCount;
-        status.LastFailureTime = lastFailureTime;
-        status.LastSuccessTime = lastSuccessTime;
-        status.NextAttemptTime = nextAttemptTime;
-        status.BreakDuration = breakDuration;
+        public string ServiceName { get; set; } = string.Empty;
+        public CircuitBreakerState State { get; set; }
+        public DateTime RegisteredAt { get; set; }
+        public DateTime? LastStateChange { get; set; }
 
-        // Calculate success rate
-        int total = failureCount + successCount;
-        status.SuccessRate = total > 0 ? (double)successCount / total : 1.0;
-    }
+        // Call Statistics
+        public long TotalCalls { get; set; }
+        public long SuccessCount { get; set; }
+        public long FailureCount { get; set; }
+        public long TimeoutCount { get; set; }
+        public long RejectedCount { get; set; }
 
-    public void IncrementFailure(string serviceName)
-    {
-        var status = _serviceStatus.GetOrAdd(serviceName, _ => new CircuitBreakerStatus { ServiceName = serviceName });
-        status.FailureCount++;
-        status.LastFailureTime = DateTime.UtcNow;
+        // Rates
+        public double SuccessRate { get; set; }
+        public double FailureRate { get; set; }
 
-        // Recalculate success rate
-        int total = status.FailureCount + status.SuccessCount;
-        status.SuccessRate = total > 0 ? (double)status.SuccessCount / total : 1.0;
-    }
+        // State Transitions
+        public int OpenCount { get; set; }
+        public int HalfOpenCount { get; set; }
+        public int RecoveryCount { get; set; }
 
-    public void IncrementSuccess(string serviceName)
-    {
-        var status = _serviceStatus.GetOrAdd(serviceName, _ => new CircuitBreakerStatus { ServiceName = serviceName });
-        status.SuccessCount++;
-        status.LastSuccessTime = DateTime.UtcNow;
+        // Timestamps
+        public DateTime? LastSuccessTime { get; set; }
+        public DateTime? LastFailureTime { get; set; }
+        public DateTime? LastTimeoutTime { get; set; }
+        public DateTime? LastRejectionTime { get; set; }
+        public DateTime? LastOpenTime { get; set; }
 
-        // Recalculate success rate
-        int total = status.FailureCount + status.SuccessCount;
-        status.SuccessRate = total > 0 ? (double)status.SuccessCount / total : 1.0;
-    }
+        // Error Information
+        public string? LastException { get; set; }
 
-    public CircuitBreakerMetrics GetMetrics()
-    {
-        var events = _events.ToList();
-        var metrics = new CircuitBreakerMetrics
+        // Health Metrics
+        public bool IsHealthy
         {
-            Services = new Dictionary<string, CircuitBreakerStatus>(_serviceStatus),
-            RecentEvents = events.OrderByDescending(e => e.Timestamp).Take(100).ToList(),
-            TotalFailures = events.Count(e => e.EventType == "Failure"),
-            TotalSuccesses = events.Count(e => e.EventType == "Success")
-        };
+            get
+            {
+                // If circuit is open, definitely not healthy
+                if (State == CircuitBreakerState.Open)
+                    return false;
 
-        return metrics;
-    }
+                // If circuit is half-open, we're testing recovery
+                if (State == CircuitBreakerState.HalfOpen)
+                    return false;
 
-    public CircuitBreakerStatus? GetServiceStatus(string serviceName)
-    {
-        _serviceStatus.TryGetValue(serviceName, out var status);
-        return status;
-    }
+                // If no calls have been made yet, consider it healthy (neutral state)
+                if (TotalCalls == 0)
+                    return true;
 
-    public List<CircuitBreakerEvent> GetEvents(int limit = 100)
-    {
-        return _events
-            .OrderByDescending(e => e.Timestamp)
-            .Take(limit)
-            .ToList();
-    }
+                // If circuit is closed and failure rate is acceptable, it's healthy
+                return State == CircuitBreakerState.Closed; //&& FailureRate < 10;
+            }
+        }
 
-    public List<CircuitBreakerEvent> GetServiceEvents(string serviceName, int limit = 100)
-    {
-        return _events
-            .Where(e => e.ServiceName.Equals(serviceName, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(e => e.Timestamp)
-            .Take(limit)
-            .ToList();
+        public TimeSpan Uptime => DateTime.UtcNow - RegisteredAt;
+
+        public CircuitBreakerStats Clone()
+        {
+            lock (Lock)
+            {
+                return new CircuitBreakerStats
+                {
+                    ServiceName = ServiceName,
+                    State = State,
+                    RegisteredAt = RegisteredAt,
+                    LastStateChange = LastStateChange,
+                    TotalCalls = TotalCalls,
+                    SuccessCount = SuccessCount,
+                    FailureCount = FailureCount,
+                    TimeoutCount = TimeoutCount,
+                    RejectedCount = RejectedCount,
+                    SuccessRate = SuccessRate,
+                    FailureRate = FailureRate,
+                    OpenCount = OpenCount,
+                    HalfOpenCount = HalfOpenCount,
+                    RecoveryCount = RecoveryCount,
+                    LastSuccessTime = LastSuccessTime,
+                    LastFailureTime = LastFailureTime,
+                    LastTimeoutTime = LastTimeoutTime,
+                    LastRejectionTime = LastRejectionTime,
+                    LastOpenTime = LastOpenTime,
+                    LastException = LastException
+                };
+            }
+        }
+
+        public override string ToString()
+        {
+            return $"Service: {ServiceName}, State: {State}, Success Rate: {SuccessRate:F2}%, " +
+                   $"Total Calls: {TotalCalls}, Failures: {FailureCount}, Rejected: {RejectedCount}";
+        }
     }
 }

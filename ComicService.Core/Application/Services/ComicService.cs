@@ -19,7 +19,7 @@ namespace ComicService.Core.Application.Services
     {
         private readonly IComicRepository _comicRepository;
         private readonly IReadingServiceClient _readingClient;
-        private readonly IMemoryCache _cache;
+        // private readonly IMemoryCache _cache;
         private readonly ILogger<ComicService> _logger;
 
         public ComicService(
@@ -30,7 +30,7 @@ namespace ComicService.Core.Application.Services
         {
             _comicRepository = comicRepository;
             _readingClient = readingClient;
-            _cache = cache;
+            // _cache = cache;
             _logger = logger;
         }
 
@@ -73,8 +73,8 @@ namespace ComicService.Core.Application.Services
                     dto.ActiveReaders24h = stats.ActiveReaders24h;
                     dto.IsTrending = stats.ActiveReaders24h > 50;
 
-                    // Cache stats for fallback
-                    _cache.Set($"stats:{id}", stats, TimeSpan.FromMinutes(5));
+                    // // Cache stats for fallback
+                    // _cache.Set($"stats:{id}", stats, TimeSpan.FromSeconds(10));
 
                     _logger.LogInformation("✅ Stats fetched successfully for comic {ComicId}", id);
                 }
@@ -86,19 +86,19 @@ namespace ComicService.Core.Application.Services
                     id);
 
                 // Fallback: Use cached stats
-                var cachedStats = _cache.Get<ReadingStatsDto>($"stats:{id}");
-                if (cachedStats != null)
-                {
-                    dto.TotalReads = cachedStats.TotalReads;
-                    dto.UniqueReaders = cachedStats.UniqueReaders;
-                    dto.ActiveReaders24h = cachedStats.ActiveReaders24h;
-                    dto.IsTrending = cachedStats.ActiveReaders24h > 50;
-                    _logger.LogInformation("✅ Using cached stats for comic {ComicId}", id);
-                }
-                else
-                {
-                    _logger.LogInformation("⚠️ No cached stats available for comic {ComicId}", id);
-                }
+                // var cachedStats = _cache.Get<ReadingStatsDto>($"stats:{id}");
+                // if (cachedStats != null)
+                // {
+                //     dto.TotalReads = cachedStats.TotalReads;
+                //     dto.UniqueReaders = cachedStats.UniqueReaders;
+                //     dto.ActiveReaders24h = cachedStats.ActiveReaders24h;
+                //     dto.IsTrending = cachedStats.ActiveReaders24h > 50;
+                //     _logger.LogInformation("✅ Using cached stats for comic {ComicId}", id);
+                // }
+                // else
+                // {
+                //     _logger.LogInformation("⚠️ No cached stats available for comic {ComicId}", id);
+                // }
             }
             catch (Exception ex)
             {
@@ -132,10 +132,10 @@ namespace ComicService.Core.Application.Services
                 statsDict = await _readingClient.GetBatchStatsAsync(comicIds, ct);
 
                 // Cache all stats
-                foreach (var kvp in statsDict)
-                {
-                    _cache.Set($"stats:{kvp.Key}", kvp.Value, TimeSpan.FromMinutes(5));
-                }
+                // foreach (var kvp in statsDict)
+                // {
+                //     _cache.Set($"stats:{kvp.Key}", kvp.Value, TimeSpan.FromMinutes(5));
+                // }
 
                 _logger.LogInformation("✅ Batch stats fetched: {Count} results", statsDict.Count);
             }
@@ -145,14 +145,14 @@ namespace ComicService.Core.Application.Services
                     "🔴 CIRCUIT BREAKER OPEN: Reading-Service unavailable. Using cached stats.");
 
                 // Fallback: Try to get cached stats
-                foreach (var comicId in comicIds)
-                {
-                    var cached = _cache.Get<ReadingStatsDto>($"stats:{comicId}");
-                    if (cached != null)
-                    {
-                        statsDict[comicId] = cached;
-                    }
-                }
+                // foreach (var comicId in comicIds)
+                // {
+                //     var cached = _cache.Get<ReadingStatsDto>($"stats:{comicId}");
+                //     if (cached != null)
+                //     {
+                //         statsDict[comicId] = cached;
+                //     }
+                // }
 
                 _logger.LogInformation("✅ Using cached stats: {Count}/{Total}",
                     statsDict.Count, comicIds.Count);

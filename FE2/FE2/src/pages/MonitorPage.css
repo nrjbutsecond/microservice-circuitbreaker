@@ -1,0 +1,155 @@
+.monitor-app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.monitor-app-header {
+  text-align: center;
+  padding: 40px 20px;
+  color: white;
+}
+
+.monitor-app-header h1 {
+  margin: 0;
+  font-size: 3em;
+  font-weight: 700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.5s ease-out;
+}
+
+.monitor-subtitle {
+  margin: 10px 0 0 0;
+  font-size: 1.2em;
+  opacity: 0.9;
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.monitor-app-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px 40px 20px;
+}
+
+.monitor-services-section {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.monitor-section-title {
+  color: white;
+  font-size: 2em;
+  margin: 0 0 20px 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.monitor-services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 20px;
+}
+
+.monitor-no-services {
+  background: white;
+  padding: 40px;
+  border-radius: 12px;
+  text-align: center;
+  color: #666;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.monitor-placeholder {
+  background: white;
+  padding: 60px 40px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.monitor-placeholder-icon {
+  font-size: 6em;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.monitor-placeholder h2 {
+  color: #333;
+  margin: 0 0 10px 0;
+  font-size: 2em;
+}
+
+.monitor-placeholder p {
+  color: #666;
+  font-size: 1.1em;
+  margin: 0 0 30px 0;
+}
+
+.monitor-placeholder-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.monitor-feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.monitor-feature-icon {
+  font-size: 1.5em;
+}
+
+.monitor-feature span:last-child {
+  color: #555;
+  font-weight: 500;
+}
+
+@media (max-width: 1024px) {
+  .monitor-services-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .monitor-app-header h1 {
+    font-size: 2em;
+  }
+
+  .monitor-subtitle {
+    font-size: 1em;
+  }
+
+  .monitor-section-title {
+    font-size: 1.5em;
+  }
+
+  .monitor-placeholder-features {
+    grid-template-columns: 1fr;
+  }
+}
